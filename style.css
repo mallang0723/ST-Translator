@@ -1,0 +1,122 @@
+/* ST-Translator styles. Colors come from SillyTavern theme variables. */
+
+/* ---------- translated message content ----------
+   ST's message sanitizer rewrites every class in message HTML to `custom-<class>`, so each selector
+   matches both spellings. Only `class` is rewritten; ids and other attributes are untouched. */
+hr:is(.stt-separator, .custom-stt-separator) { border: 0; border-top: 1px dashed var(--SmartThemeBorderColor, rgba(127,127,127,0.4)); margin: 0.8em 0; }
+details:is(.stt-translation, .custom-stt-translation) > summary { cursor: pointer; color: var(--SmartThemeEmColor, inherit); }
+
+/* ---------- status bar under a message ---------- */
+.stt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; font-size: 0.78em; color: var(--SmartThemeEmColor, inherit); }
+.stt-bar:empty { display: none; }
+.stt-bar .stt-note { color: var(--SmartThemeEmColor, inherit); opacity: 0.85; }
+.stt-bar .stt-note.stt-warn { color: #c90; opacity: 1; }
+.stt-bar .stt-note.stt-err { color: #d55; opacity: 1; }
+.stt-bar button, .stt-bar .menu_button, .stt-bar .stt-btn {
+  display: inline-flex; align-items: center; width: auto; margin: 0; font: inherit; cursor: pointer; padding: 2px 8px;
+  border-radius: 6px; color: var(--SmartThemeBodyColor, inherit); background: transparent;
+  border: 1px solid var(--SmartThemeBorderColor, rgba(127,127,127,0.3)); }
+.stt-bar button:hover:not(:disabled), .stt-bar .stt-btn:hover:not(:disabled) { border-color: var(--SmartThemeQuoteColor, currentColor); }
+.stt-bar button:disabled { opacity: 0.5; cursor: default; }
+.stt-bar .stt-primary { border-color: var(--SmartThemeQuoteColor, currentColor); }
+.stt-bar .stt-danger { color: #d55; border-color: #d55; }
+
+/* ---------- message toolbar buttons (size/spacing come from ST's .mes_button) ---------- */
+.mes_button.stt-btn-translate, .mes_button.stt-btn-delete { cursor: pointer; }
+.mes_button.stt-btn-delete:hover { color: #ef4444; }
+.mes_button.stt-busy { color: var(--SmartThemeQuoteColor, currentColor); animation: stt-pulse 1.1s ease-in-out infinite; }
+@keyframes stt-pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .mes_button.stt-busy { animation: none; } }
+
+/* ---------- draft translate button in the send form ---------- */
+#rightSendForm > .stt-draft-btn, .stt-draft-btn { cursor: pointer; opacity: 0.7; transition: opacity 0.15s; }
+.stt-draft-btn:hover { opacity: 1; }
+.stt-draft-btn.stt-busy { color: var(--SmartThemeQuoteColor, currentColor); opacity: 1; animation: stt-pulse 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .stt-draft-btn.stt-busy { animation: none; } }
+
+/* ---------- paragraph view (font sizes are set on #chat) ---------- */
+#chat { --stt-source-size: 16px; --stt-translation-size: 18px; }
+:is(.stt-pr, .custom-stt-pr) { --stt-accent: var(--SmartThemeQuoteColor, currentColor); min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+:is(.stt-pr-note, .custom-stt-pr-note) { font-size: 12px; color: var(--SmartThemeEmColor, inherit); margin-bottom: 12px; white-space: pre-wrap; }
+:is(.stt-pr-pair, .custom-stt-pr-pair) { margin: 0 0 18px; }
+:is(.stt-pr-pair, .custom-stt-pr-pair):last-child { margin-bottom: 0; }
+:is(.stt-pr-label, .custom-stt-pr-label) { display: block; margin-bottom: 4px; font-size: 10px; letter-spacing: .06em; color: var(--SmartThemeEmColor, inherit); font-weight: 700; }
+:is(.stt-pr-src, .custom-stt-pr-src) { color: var(--SmartThemeEmColor, inherit); font-size: var(--stt-source-size, 16px); line-height: 1.75; }
+:is(.stt-pr-tgt, .custom-stt-pr-tgt) { font-size: var(--stt-translation-size, 18px); line-height: 1.75; border-left: 3px solid var(--stt-accent); padding-left: 12px; margin-top: 8px; }
+:is(.stt-pr-src, .custom-stt-pr-src) > :first-child, :is(.stt-pr-tgt, .custom-stt-pr-tgt) > :first-child { margin-top: 0; }
+:is(.stt-pr-src, .custom-stt-pr-src) p, :is(.stt-pr-tgt, .custom-stt-pr-tgt) p { margin: 0 0 .4em; }
+:is(.stt-pr-same, .custom-stt-pr-same) { font-size: var(--stt-source-size, 16px); }
+:is(.stt-pr-pending, .custom-stt-pr-pending) { color: var(--SmartThemeEmColor, inherit); font-style: italic; }
+:is(.stt-pr-tap, .custom-stt-pr-tap) :is(.stt-pr-tgt, .custom-stt-pr-tgt) { margin-top: 0; }
+:is(.stt-pr-tfirst, .custom-stt-pr-tfirst) :is(.stt-pr-tgt, .custom-stt-pr-tgt) { margin-top: 0; margin-bottom: 8px; }
+:is(.stt-pr-tfirst, .custom-stt-pr-tfirst) :is(.stt-pr-src, .custom-stt-pr-src) { margin-top: 8px; }
+:is(.stt-pr-orig, .custom-stt-pr-orig) { margin-top: 8px; color: var(--SmartThemeEmColor, inherit); font-size: max(13px, calc(var(--stt-source-size, 16px) * 0.85)); line-height: 1.75; }
+:is(.stt-pr-orig, .custom-stt-pr-orig) > summary { cursor: pointer; font-size: 11px; color: var(--SmartThemeEmColor, inherit); }
+:is(.stt-pr-orig, .custom-stt-pr-orig)[open] { border-left: 4px solid var(--stt-accent); padding: 0.4rem 0.6rem; border-radius: 2px; background-color: color-mix(in srgb, currentColor 7%, transparent); }
+:is(.stt-pr-orig, .custom-stt-pr-orig)[open] > summary { color: var(--stt-accent); margin-bottom: 4px; }
+:is(.stt-pr-orig, .custom-stt-pr-orig) > summary + * { margin-top: 0; }
+:is(.stt-pr-orig, .custom-stt-pr-orig) p { margin: 0 0 .4em; }
+:is(.stt-pr-orig, .custom-stt-pr-orig) p:last-child { margin-bottom: 0; }
+
+/* ---------- settings drawer ---------- */
+.stt-settings { width: 100%; }
+.stt-settings .inline-drawer.stt-dirty > .inline-drawer-toggle { box-shadow: inset 3px 0 0 #c90; }
+.stt-panel { display: flex; flex-direction: column; gap: 12px; padding: 10px 4px; color: var(--SmartThemeBodyColor, inherit); font-size: 0.95em; text-align: left; }
+.stt-section { display: flex; flex-direction: column; gap: 7px; border: 1px solid var(--SmartThemeBorderColor, rgba(127,127,127,0.3)); border-radius: 8px; padding: 9px; }
+.stt-section > h3, .stt-modal > h3 { margin: 0; font-size: 1em; }
+.stt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.stt-grow { flex: 1; }
+.stt-field { display: flex; flex-direction: column; gap: 3px; }
+.stt-field > span { color: var(--SmartThemeEmColor, inherit); font-size: 0.9em; }
+.stt-panel .text_pole, .stt-modal .text_pole { width: 100%; box-sizing: border-box; margin: 0; }
+.stt-panel textarea.text_pole, .stt-modal textarea.text_pole { min-height: 70px; resize: vertical; }
+.stt-panel textarea.stt-prompt { min-height: 110px; font-size: 0.85em; }
+.stt-panel textarea[readonly] { opacity: 0.75; }
+.stt-panel .stt-btn, .stt-panel .menu_button { width: auto; margin: 0; }
+.stt-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.stt-sub { padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.stt-sticky { position: sticky; bottom: 0; z-index: 1; background: var(--SmartThemeBlurTintColor, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 8px 0; }
+.stt-modal { display: flex; flex-direction: column; gap: 10px; padding: 4px; text-align: left; }
+.stt-modal textarea.text_pole { min-height: 280px; font-size: 0.85em; }
+.stt-bundle-editor textarea.text_pole { min-height: 90px; }
+.stt-panel, .stt-section, .stt-field, .stt-modal { min-width: 0; overflow-wrap: anywhere; }
+.stt-row > .stt-field { flex: 1 1 130px; }
+.stt-panel select { min-width: 0; max-width: 100%; }
+.stt-bundle-preview { min-width: 0; }
+.stt-bundle-preview > summary { cursor: pointer; color: var(--SmartThemeEmColor, inherit); }
+.stt-bundle-preview .stt-field { margin-top: 7px; }
+.stt-note { color: var(--SmartThemeEmColor, inherit); opacity: 0.9; }
+.stt-note.stt-warn { color: #c90; opacity: 1; }
+.stt-note.stt-err { color: #d55; opacity: 1; }
+.stt-btn.stt-primary { border-color: var(--SmartThemeQuoteColor, currentColor); }
+.stt-btn.stt-danger { color: #d55; border-color: #d55; }
+.stt-btn:disabled { opacity: 0.5; cursor: default; }
+.stt-sticky.stt-unsaved { border-top: 2px solid #c90; background: color-mix(in srgb, #c90 22%, var(--SmartThemeBlurTintColor, transparent)); padding: 8px; border-radius: 8px; }
+.stt-unsaved-note { flex: 1 1 100%; font-weight: 700; color: #c90; }
+.stt-unsaved-note[hidden] { display: none; }
+.stt-font-row { display: flex; align-items: center; gap: 7px; }
+.stt-font-label { display: flex; align-items: center; flex: 1; gap: 9px; min-width: 0; }
+.stt-font-label > span { flex: none; min-width: 2.2em; }
+.stt-font-label input[type=range] { flex: 1; min-width: 0; accent-color: var(--SmartThemeQuoteColor, currentColor); }
+.stt-font-row .stt-btn { width: 34px; min-width: 34px; padding: 0; font-size: 18px; justify-content: center; }
+.stt-font-row output { min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Phones and touch screens: readable text (15px+) and tap targets of 44px+ in the drawer. */
+@media (max-width: 768px), (pointer: coarse) {
+  .stt-bar, :is(.stt-pr-note, .custom-stt-pr-note), .stt-panel, .stt-modal, .stt-note { font-size: 15px; }
+  :is(.stt-pr-label, .custom-stt-pr-label), :is(.stt-pr-orig, .custom-stt-pr-orig) > summary { font-size: 15px !important; }
+  :is(.stt-pr-orig, .custom-stt-pr-orig) { font-size: max(15px, calc(var(--stt-source-size, 16px) * 0.85)); }
+  .stt-panel textarea.stt-prompt, .stt-modal textarea.text_pole { font-size: 15px; }
+  .stt-field > span, .stt-section > h3 { font-size: 15px; }
+  .stt-panel .stt-btn, .stt-panel .menu_button, .stt-modal .menu_button, .stt-bar button { min-height: 44px; min-width: 44px; padding: 8px 14px; }
+  .stt-panel input.text_pole, .stt-panel select.text_pole, .stt-modal input.text_pole { min-height: 44px; font-size: 16px; }
+  .stt-check { min-height: 44px; }
+  .stt-check input { width: 22px; height: 22px; flex: none; }
+  .stt-bundle-preview > summary { min-height: 44px; display: flex; align-items: center; }
+  .stt-font-label input[type=range] { min-height: 44px; }
+  :is(.stt-pr-orig, .custom-stt-pr-orig) > summary, details:is(.stt-translation, .custom-stt-translation) > summary { min-height: 44px; display: flex; align-items: center; }
+  .stt-font-row .stt-btn { width: 44px; min-width: 44px; }
+  #stt_open_settings { min-height: 44px; }
+  /* .mes_button icons deliberately follow ST's own size. */
+}
+.stt-step[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
