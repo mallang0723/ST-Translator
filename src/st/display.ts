@@ -3,7 +3,6 @@
 // we wrote), so a display_text written by anything else (ST's built-in Chat Translation) is never
 // clobbered when we have nothing to show. The slim status bar is the only injected DOM here.
 
-import { protectExtraFor } from '../compat';
 import { renderMessage } from '../display/render';
 import { isTranslationHidden, recordFor, showsToggle, wantsBar } from '../message-ui';
 import { CANCELLED_MESSAGE, type ChatSettings, type CompatSettings, type MessageTranslations, sourceHash, type ViewSettings } from '../shared';
@@ -29,7 +28,7 @@ export function computeDisplayText(message: STMessage, settings: ChatSettings, v
   const content = message.mes ?? '';
   const record = recordFor(mt, content);
   if (!record || !record.parts.some((p) => p.trim())) return null;
-  const out = renderMessage(content, record, settings, view, compat ? { protect: protectExtraFor(compat, 'incoming', undefined), singleInstance: compat.autopic || compat.thRerender } : {});
+  const out = renderMessage(content, record, settings, view, compat ? { singleInstance: compat.singleInstance || compat.thRerender } : {});
   if (out === content) return null;
   return settings.displayMode === 'paragraph' ? enableMarkdownInWrappers(out) : out;
 }

@@ -232,8 +232,6 @@ function protect(source, options) {
   for (const rule of parseExcludeRules(options.excludeRules))
     text = text.replace(rule, (m) => hold(m));
   const tagNames = lenientTags(options.excludeTags ?? "");
-  if (options.autopic && !tagNames.includes("autopic"))
-    tagNames.push("autopic");
   text = protectElements(text, tagNames, holdBlock);
   if (options.protectCode)
     text = text.replace(/```[\s\S]*?```/g, (m) => holdBlock(m));
@@ -303,12 +301,6 @@ function loreveilConfig(raw) {
       tags.push(tag);
   }
   return { tags, attribute: v.attribute !== false };
-}
-function protectExtraFor(compat, direction, loreveil) {
-  return {
-    autopic: compat.autopic,
-    loreveil: compat.loreveil && direction === "outgoing" ? loreveilConfig(loreveil) : null
-  };
 }
 function blockSentinel(...texts) {
   let s = "";
@@ -1256,6 +1248,39 @@ ${instruction}`;
   }
 });
 
+// src/migrations.ts
+function object(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function migrateStore(value) {
+  const raw = object(value);
+  const compat = object(raw.compat);
+  const legacy = raw.compat != null && typeof raw.compat === "object" && !Array.isArray(raw.compat) && !("singleInstance" in compat);
+  const enabled = legacy && compat.autopic !== false;
+  const tags = lenientTags(typeof raw.legacyExcludeTags === "string" ? raw.legacyExcludeTags : "");
+  if (enabled && !tags.includes("autopic"))
+    tags.push("autopic");
+  const { autopic: _old, ...currentCompat } = compat;
+  if (legacy)
+    currentCompat.singleInstance = enabled;
+  const migrateSettings = (value2, fallbackTags) => {
+    const settings = object(value2);
+    if (!tags.length || settings.excludeTagsVersion === 1)
+      return settings;
+    const have = lenientTags(typeof settings.excludeTags === "string" ? settings.excludeTags : fallbackTags);
+    return { ...settings, excludeTags: [...new Set([...have, ...tags])].join(", "), excludeTagsVersion: 1 };
+  };
+  const defaults = migrateSettings(raw.defaults, "");
+  const chats = Object.fromEntries(Object.entries(object(raw.chats)).map(([id, settings]) => [id, migrateSettings(settings, typeof defaults.excludeTags === "string" ? defaults.excludeTags : "")]));
+  return {
+    ...raw,
+    compat: currentCompat,
+    defaults,
+    chats,
+    legacyExcludeTags: tags.join(", ")
+  };
+}
+
 // src/shared.ts
 var DISPLAY_MODES = ["below", "above", "only", "collapsed", "collapsed-source", "paragraph"];
 var FONT_MIN = 12;
@@ -1274,13 +1299,13 @@ function normalizeView(value) {
     translationFontSize: fontSize(v.translationFontSize, DEFAULT_VIEW.translationFontSize)
   };
 }
-var DEFAULT_COMPAT = { loreveil: true, autopic: true, thRerender: true, debug: false };
+var DEFAULT_COMPAT = { loreveil: true, singleInstance: true, thRerender: true, debug: false };
 function normalizeCompat(value) {
   const v = value && typeof value === "object" ? value : {};
   const flag = (x, d) => typeof x === "boolean" ? x : d;
   return {
     loreveil: flag(v.loreveil, DEFAULT_COMPAT.loreveil),
-    autopic: flag(v.autopic, DEFAULT_COMPAT.autopic),
+    singleInstance: flag(v.singleInstance, DEFAULT_COMPAT.singleInstance),
     thRerender: flag(v.thRerender, DEFAULT_COMPAT.thRerender),
     debug: flag(v.debug, DEFAULT_COMPAT.debug)
   };
@@ -1311,6 +1336,7 @@ var DEFAULT_SETTINGS = {
   protectCode: true,
   excludeRules: "",
   excludeTags: "",
+  excludeTagsVersion: 1,
   bundleId: "",
   glossary: "",
   freeContextEnabled: false,
@@ -1351,6 +1377,7 @@ function normalizeSettings(value, base = DEFAULT_SETTINGS, bundles = []) {
     protectCode: bool(s.protectCode, base.protectCode),
     excludeRules: str(s.excludeRules, base.excludeRules),
     excludeTags: lenientTags(str(s.excludeTags, base.excludeTags)).join(", "),
+    excludeTagsVersion: 1,
     bundleId: typeof s.bundleId === "string" && bundles.some((b) => b.id === s.bundleId) ? s.bundleId : "",
     glossary: str(s.glossary, base.glossary),
     freeContextEnabled: bool(s.freeContextEnabled, base.freeContextEnabled),
@@ -1366,7 +1393,7 @@ function normalizeSettings(value, base = DEFAULT_SETTINGS, bundles = []) {
   };
 }
 function normalizeStore(value) {
-  const raw = value && typeof value === "object" ? value : {};
+  const raw = migrateStore(value);
   const userBundles = [];
   const bundleIds = new Set;
   for (const b of Array.isArray(raw.userBundles) ? raw.userBundles : []) {
@@ -1399,7 +1426,7 @@ function normalizeStore(value) {
     seen.add(id);
     userPresets.push({ id, name, prompt });
   }
-  return { version: 1, view: normalizeView(raw.view), compat: normalizeCompat(raw.compat), userPresets, userBundles, defaults, chats };
+  return { version: 1, ...raw.legacyExcludeTags ? { legacyExcludeTags: raw.legacyExcludeTags } : {}, view: normalizeView(raw.view), compat: normalizeCompat(raw.compat), userPresets, userBundles, defaults, chats };
 }
 function settingsFor(store, chatId) {
   return chatId && store.chats[chatId] ? store.chats[chatId] : store.defaults;
@@ -1674,7 +1701,7 @@ async function translate(job, deps) {
     const result = await deps.complete(request);
     return { ...result, text: cleanReply(result.text) };
   };
-  const prot = protect(job.source, { ...settings, ...job.protectExtra });
+  const prot = protect(job.source, { ...settings, loreveil: job.loreveil });
   const sources = partSources(prot.text, settings);
   const targetLanguage = job.direction === "incoming" ? settings.myLanguage : settings.modelLanguage;
   const aborted = () => {
@@ -1824,10 +1851,10 @@ var PENDING_TEXT = "아직 번역하지 않은 문단입니다.";
 function sameArray2(a, b) {
   return a.length === b.length && a.every((v, i) => normalizeIllustrations(v) === normalizeIllustrations(b[i]));
 }
-function pairParagraphs(content, record, settings, extra) {
+function pairParagraphs(content, record, settings, loreveil) {
   if (record.unit === "paragraph") {
     try {
-      const prot = protect(content, { ...settings, ...extra });
+      const prot = protect(content, { ...settings, loreveil });
       const sources2 = partSources(prot.text, { ...settings, translationUnit: "paragraph" });
       if (sameArray2(prot.pieces, record.pieces) && sources2.length === record.total) {
         const current = currentIllustrations(content);
@@ -1882,8 +1909,8 @@ ${body}
 
 </div>`;
 }
-function buildParagraphView(content, record, settings, view, order = "source-first", extra) {
-  const pairing = pairParagraphs(content, record, settings, extra);
+function buildParagraphView(content, record, settings, view, order = "source-first", loreveil) {
+  const pairing = pairParagraphs(content, record, settings, loreveil);
   const pairs = groupPairs(pairing.pairs);
   const whole = pairing.kind === "whole";
   const out = [`<div class="stt-pr${view === "tap" ? " stt-pr-tap" : ""}${view !== "tap" && order === "translation-first" ? " stt-pr-tfirst" : ""}">`];
@@ -1932,7 +1959,7 @@ function blocksOf(content, settings, options) {
   if (!options.singleInstance)
     return null;
   try {
-    const p = protect(content, { ...settings, ...options.protect });
+    const p = protect(content, { ...settings, loreveil: options.loreveil });
     return p.blockMarkers.length ? p : null;
   } catch {
     return null;
@@ -1942,7 +1969,7 @@ function renderMessage(content, record, settings, view, options = {}) {
   if (!record || !record.parts.some((p) => cleanReply(p).trim()))
     return content;
   if (settings.displayMode === "paragraph")
-    return buildParagraphView(content, record, settings, view.paragraphView, view.paragraphOrder, options.protect);
+    return buildParagraphView(content, record, settings, view.paragraphView, view.paragraphOrder, options.loreveil);
   const mode = settings.displayMode;
   const held = mode === "only" ? null : blocksOf(content, settings, options);
   const ownMarkers = held ? held.blockMarkers.filter((n) => record.pieces[n - 1] === held.pieces[n - 1]) : [];
@@ -2442,8 +2469,8 @@ function connectionId() {
 }
 function persistGlobal() {
   const c = ctx();
-  const { view, compat, userPresets, userBundles, defaults } = store;
-  c.extensionSettings[METADATA_KEY] = { version: 1, view, compat, userPresets, userBundles, defaults };
+  const { view, compat, userPresets, userBundles, defaults, legacyExcludeTags } = store;
+  c.extensionSettings[METADATA_KEY] = { version: 1, view, compat, userPresets, userBundles, defaults, ...legacyExcludeTags ? { legacyExcludeTags } : {} };
   c.saveSettingsDebounced();
 }
 function persistChat() {
@@ -2694,8 +2721,7 @@ async function translateMessage(chatId2, message, mode, options) {
       store: store2,
       presets: promptPresets(store2.userPresets),
       previous: contextBefore(chat, index),
-      resume: mode === "continue" ? existing : undefined,
-      protectExtra: protectExtraFor(store2.compat, "incoming", undefined)
+      resume: mode === "continue" ? existing : undefined
     }, {
       complete: createCompleter({ chosenId: connectionId(), maxTokens: settings2.maxTokens, signal: controller.signal }),
       signal: controller.signal,
@@ -2842,7 +2868,7 @@ async function translateOutgoing(chatId2, text, end) {
   const controller = new AbortController;
   const timer = setTimeout(() => controller.abort(), 180000);
   try {
-    const record = await translate({ direction: "outgoing", source: text, settings: settings2, store: store2, presets: promptPresets(store2.userPresets), previous, protectExtra: protectExtraFor(store2.compat, "outgoing", ctx().extensionSettings?.loreVeil) }, { complete: createCompleter({ chosenId: connectionId(), maxTokens: settings2.maxTokens, signal: controller.signal }) });
+    const record = await translate({ direction: "outgoing", source: text, settings: settings2, store: store2, presets: promptPresets(store2.userPresets), previous, loreveil: store2.compat.loreveil ? loreveilConfig(ctx().extensionSettings?.loreVeil) : null }, { complete: createCompleter({ chosenId: connectionId(), maxTokens: settings2.maxTokens, signal: controller.signal }) });
     if (record.status !== "done")
       throw new Error("번역이 끝까지 되지 않았습니다.");
     const out = recordToText(record).trim();
@@ -3012,7 +3038,7 @@ function computeDisplayText(message, settings2, view, compat) {
   const record = recordFor(mt, content);
   if (!record || !record.parts.some((p) => p.trim()))
     return null;
-  const out = renderMessage(content, record, settings2, view, compat ? { protect: protectExtraFor(compat, "incoming", undefined), singleInstance: compat.autopic || compat.thRerender } : {});
+  const out = renderMessage(content, record, settings2, view, compat ? { singleInstance: compat.singleInstance || compat.thRerender } : {});
   if (out === content)
     return null;
   return settings2.displayMode === "paragraph" ? enableMarkdownInWrappers(out) : out;
@@ -3899,7 +3925,7 @@ function mountSettings(api) {
     ]), el2("div", { class: "stt-section" }, [
       el2("h3", {}, ["다른 확장과 함께 쓰기"]),
       compatCheck("LoreVeil 태그 보호 (내 메시지 번역)", "loreveil"),
-      compatCheck("오토픽 블록 보호 (<autopic> 번역 안 함, 한 번만 표시)", "autopic"),
+      compatCheck("제외 태그·코드 블록은 한 번만 표시 (원문과 번역을 함께 보여 줄 때)", "singleInstance"),
       compatCheck("JS 러너(Tavern Helper) 다시 그리기", "thRerender"),
       compatCheck("디버그 로그", "debug"),
       el2("div", { class: "stt-note" }, ["이 항목은 바로 저장됩니다. LoreVeil 의 속성 방식(<div 태그>)은 위의 HTML 보호가 켜져 있어야 닫는 태그까지 지켜집니다."])

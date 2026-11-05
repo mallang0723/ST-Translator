@@ -18,10 +18,7 @@ import {
   type TranslationRequest,
 } from './prompt';
 import { hasNoText, splitParagraphs } from './paragraphs';
-import { checkMarkers, protect, type ProtectOptions, restore } from './protect';
-
-/** Compat protection added on top of the chat settings. */
-export type ProtectExtra = Pick<ProtectOptions, 'autopic' | 'loreveil'>;
+import { checkMarkers, protect, type LoreVeilConfig, restore } from './protect';
 
 export const MAX_AUTO_CONTINUE = 4;
 /** Most text pieces the marker fallback may translate one by one. */
@@ -49,8 +46,8 @@ export interface EngineJob {
   previous: ContextMessage[];
   /** Continue this record instead of starting over. */
   resume?: TranslationRecord;
-  /** LoreVeil / AutoPic protection; omitted = off. */
-  protectExtra?: ProtectExtra;
+  /** LoreVeil protection for outgoing messages; omitted = off. */
+  loreveil?: LoreVeilConfig | null;
 }
 
 export class TranslationError extends Error {
@@ -80,10 +77,10 @@ function resumable(record: TranslationRecord | null | undefined, pieces: string[
 }
 
 /** Requests still needed to translate `source` (parts already done in `record` are skipped). */
-export function requestsNeeded(source: string, settings: ChatSettings, record: TranslationRecord | null | undefined, extra?: ProtectExtra): number {
+export function requestsNeeded(source: string, settings: ChatSettings, record: TranslationRecord | null | undefined, loreveil?: LoreVeilConfig | null): number {
   let prot;
   try {
-    prot = protect(source, { ...settings, ...extra });
+    prot = protect(source, { ...settings, loreveil });
   } catch {
     return 0;
   }
@@ -102,7 +99,7 @@ export async function translate(job: EngineJob, deps: EngineDeps): Promise<Trans
     const result = await deps.complete(request);
     return { ...result, text: cleanReply(result.text) };
   };
-  const prot = protect(job.source, { ...settings, ...job.protectExtra });
+  const prot = protect(job.source, { ...settings, loreveil: job.loreveil });
   const sources = partSources(prot.text, settings);
   const targetLanguage = job.direction === 'incoming' ? settings.myLanguage : settings.modelLanguage;
   const aborted = () => {

@@ -1,5 +1,6 @@
 // Types, defaults and messages shared by the backend and frontend.
 
+import { migrateStore } from './migrations';
 import { normalizeIllustrations } from './illustrations';
 import { lenientTags } from './translate/protect';
 
@@ -55,6 +56,8 @@ export interface ChatSettings {
   excludeRules: string;
   /** Tag names (comma separated) whose whole element is never sent for translation. <style>/<script> are always kept. */
   excludeTags: string;
+  /** Marks settings already migrated to explicit excluded tags. */
+  excludeTagsVersion?: 1;
   /** Shared translation guide bundle. '' = none; the following text fields are room additions. */
   bundleId: string;
   // Translation Tools 1.5.4 per-chat scope
@@ -114,25 +117,25 @@ export function normalizeView(value: unknown): ViewSettings {
   };
 }
 
-/** Global switches for living next to LoreVeil, AutoPic and Tavern Helper. */
+/** Global switches for living next to LoreVeil and Tavern Helper. */
 export interface CompatSettings {
   /** Keep LoreVeil tags and markers byte-identical in my translated messages. */
   loreveil: boolean;
-  /** Never translate <autopic> blocks; show excluded and code blocks once in two-sided display modes. */
-  autopic: boolean;
+  /** Show excluded and code blocks once in two-sided display modes. */
+  singleInstance: boolean;
   /** Ask Tavern Helper to re-render a message after we rewrite its block. */
   thRerender: boolean;
   debug: boolean;
 }
 
-export const DEFAULT_COMPAT: CompatSettings = { loreveil: true, autopic: true, thRerender: true, debug: false };
+export const DEFAULT_COMPAT: CompatSettings = { loreveil: true, singleInstance: true, thRerender: true, debug: false };
 
 export function normalizeCompat(value: unknown): CompatSettings {
   const v = (value && typeof value === 'object' ? value : {}) as Partial<Record<keyof CompatSettings, unknown>>;
   const flag = (x: unknown, d: boolean) => (typeof x === 'boolean' ? x : d);
   return {
     loreveil: flag(v.loreveil, DEFAULT_COMPAT.loreveil),
-    autopic: flag(v.autopic, DEFAULT_COMPAT.autopic),
+    singleInstance: flag(v.singleInstance, DEFAULT_COMPAT.singleInstance),
     thRerender: flag(v.thRerender, DEFAULT_COMPAT.thRerender),
     debug: flag(v.debug, DEFAULT_COMPAT.debug),
   };
@@ -140,6 +143,8 @@ export function normalizeCompat(value: unknown): CompatSettings {
 
 export interface Store {
   version: 1;
+  /** Tags to migrate into old chat metadata when those chats are opened later. */
+  legacyExcludeTags?: string;
   view: ViewSettings;
   compat: CompatSettings;
   userPresets: UserPreset[];
@@ -176,6 +181,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   protectCode: true,
   excludeRules: '',
   excludeTags: '',
+  excludeTagsVersion: 1,
   bundleId: '',
   glossary: '',
   freeContextEnabled: false,
@@ -218,6 +224,7 @@ export function normalizeSettings(value: unknown, base: ChatSettings = DEFAULT_S
     protectCode: bool(s.protectCode, base.protectCode),
     excludeRules: str(s.excludeRules, base.excludeRules),
     excludeTags: lenientTags(str(s.excludeTags, base.excludeTags)).join(', '),
+    excludeTagsVersion: 1,
     bundleId: typeof s.bundleId === 'string' && bundles.some((b) => b.id === s.bundleId) ? s.bundleId : '',
     glossary: str(s.glossary, base.glossary),
     freeContextEnabled: bool(s.freeContextEnabled, base.freeContextEnabled),
@@ -236,7 +243,7 @@ export function normalizeSettings(value: unknown, base: ChatSettings = DEFAULT_S
 }
 
 export function normalizeStore(value: unknown): Store {
-  const raw = (value && typeof value === 'object' ? value : {}) as Partial<Store>;
+  const raw = migrateStore(value) as Partial<Store>;
   const userBundles: UserBundle[] = [];
   const bundleIds = new Set<string>();
   for (const b of Array.isArray(raw.userBundles) ? raw.userBundles : []) {
@@ -263,7 +270,7 @@ export function normalizeStore(value: unknown): Store {
     seen.add(id);
     userPresets.push({ id, name, prompt });
   }
-  return { version: 1, view: normalizeView(raw.view), compat: normalizeCompat(raw.compat), userPresets, userBundles, defaults, chats };
+  return { version: 1, ...(raw.legacyExcludeTags ? { legacyExcludeTags: raw.legacyExcludeTags } : {}), view: normalizeView(raw.view), compat: normalizeCompat(raw.compat), userPresets, userBundles, defaults, chats };
 }
 
 export function settingsFor(store: Store, chatId: string | null): ChatSettings {

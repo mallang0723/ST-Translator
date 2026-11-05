@@ -4,7 +4,6 @@
 // Protected, in this order:
 //   1. user exclude rules (<tag> elements, /regex/, "start ... end" ranges)
 //   1b. elements named in the excluded tag list (excludeTags), nested tags counted
-//       (plus <autopic> when the autopic option is on, whatever the list says)
 //   2. fenced code blocks                      (protectCode)
 //   3. <style>/<script> elements (always)
 //   3a. LoreVeil tags and markers (loreveil option, my outgoing messages only)
@@ -20,8 +19,6 @@ export interface ProtectOptions {
   excludeRules: string;
   /** Tag names whose whole element (tags and contents) is kept verbatim. Comma / space separated. */
   excludeTags?: string;
-  /** Hold <autopic> elements whole, as if they were in excludeTags. */
-  autopic?: boolean;
   /** Hold LoreVeil tags and markers. null / undefined = off. */
   loreveil?: LoreVeilConfig | null;
 }
@@ -220,7 +217,6 @@ export function protect(source: string, options: ProtectOptions): Protected {
   };
   for (const rule of parseExcludeRules(options.excludeRules)) text = text.replace(rule, (m) => hold(m));
   const tagNames = lenientTags(options.excludeTags ?? '');
-  if (options.autopic && !tagNames.includes('autopic')) tagNames.push('autopic');
   text = protectElements(text, tagNames, holdBlock);
   if (options.protectCode) text = text.replace(/```[\s\S]*?```/g, (m) => holdBlock(m));
   // <style> and <script> are never translated, whatever the HTML setting says.

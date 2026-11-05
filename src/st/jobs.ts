@@ -16,7 +16,7 @@ import {
   sourceHash,
   type TranslationRecord,
 } from '../shared';
-import { protectExtraFor } from '../compat';
+import { loreveilConfig } from '../compat';
 import { type Completion, recordToText, translate, TranslationError } from '../translate/engine';
 import type { ContextMessage, Direction } from '../translate/prompt';
 import { ExcludeRuleError } from '../translate/protect';
@@ -232,7 +232,6 @@ export async function translateMessage(chatId: string, message: STMessage, mode:
         presets: promptPresets(store.userPresets),
         previous: contextBefore(chat, index),
         resume: mode === 'continue' ? existing : undefined,
-        protectExtra: protectExtraFor(store.compat, 'incoming', undefined),
       },
       {
         complete: createCompleter({ chosenId: connectionId(), maxTokens: settings.maxTokens, signal: controller.signal }),
@@ -392,7 +391,7 @@ export async function translateOutgoing(chatId: string | null, text: string, end
   const timer = setTimeout(() => controller.abort(), 180_000);
   try {
     const record = await translate(
-      { direction: 'outgoing' as Direction, source: text, settings, store, presets: promptPresets(store.userPresets), previous, protectExtra: protectExtraFor(store.compat, 'outgoing', ctx().extensionSettings?.loreVeil) },
+      { direction: 'outgoing' as Direction, source: text, settings, store, presets: promptPresets(store.userPresets), previous, loreveil: store.compat.loreveil ? loreveilConfig(ctx().extensionSettings?.loreVeil) : null },
       { complete: createCompleter({ chosenId: connectionId(), maxTokens: settings.maxTokens, signal: controller.signal }) as (r: never) => Promise<Completion> },
     );
     if (record.status !== 'done') throw new Error('번역이 끝까지 되지 않았습니다.');

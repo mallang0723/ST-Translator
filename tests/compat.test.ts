@@ -1,7 +1,7 @@
-// LoreVeil, AutoPic and Tavern Helper compatibility.
+// LoreVeil, excluded tags and Tavern Helper compatibility.
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { blankPieces, blockSentinel, loreveilConfig, protectExtraFor, removeSentinels } from '../src/compat';
+import { blankPieces, blockSentinel, loreveilConfig, removeSentinels } from '../src/compat';
 import { renderMessage } from '../src/display/render';
 import { promptPresets } from '../src/presets';
 import { DEFAULT_COMPAT, DEFAULT_SETTINGS, DEFAULT_VIEW, normalizeCompat, normalizeStore, sourceHash, type ChatSettings, type TranslationRecord } from '../src/shared';
@@ -104,7 +104,7 @@ describe('LoreVeil round trip (property test)', () => {
   const atoms = [
     '<st-loreveil>', '</st-loreveil>', '<ST-LoreVeil a="1">', '<wi-exclude>', '</wi-exclude>', '<wi:x>', '</wi:x>', '<div st-loreveil>', '<div class="q" wi-exclude>', '</div>',
     '!--ST_LOREVEIL_START--!', '!--ST_LOREVEIL_END--!', '!--WI_X_START--!', '!--WI_X_END--!', '<!--', '-->', '<!-- note -->', '```', '\n```js\n', '`code`',
-    '{{user}}', '⟦3⟧', '<style>b{}</style>', '<autopic><scene>s</scene></autopic>', '<b>', '</b>', '<', '>', '"', "'", '\n', '\n\n', ' ', 'Hello', '안녕', 'world.', '<p class="a>b">',
+    '{{user}}', '⟦3⟧', '<style>b{}</style>', '<widget><scene>s</scene></widget>', '<b>', '</b>', '<', '>', '"', "'", '\n', '\n\n', ' ', 'Hello', '안녕', 'world.', '<p class="a>b">',
   ];
   function rng(seed: number) {
     return () => {
@@ -120,8 +120,8 @@ describe('LoreVeil round trip (property test)', () => {
       for (let k = 0; k < len; k++) src += atoms[Math.floor(rand() * atoms.length)]!;
       for (const protectHtml of [false, true]) {
         for (const protectCode of [false, true]) {
-          for (const autopic of [false, true]) {
-            const p = protect(src, { ...lv({ protectHtml, protectCode, autopic }) });
+          for (const excludeTags of ['', 'widget']) {
+            const p = protect(src, { ...lv({ protectHtml, protectCode, excludeTags }) });
             expect(restore(p.text, p.pieces)).toBe(src);
             // identity "translation" passes the marker check, order included
             expect(checkMarkers(p.text, p.text, p.ordered)).toBeNull();
@@ -155,7 +155,7 @@ const job = (source: string, s: ChatSettings, extra?: ProtectOptions) => ({
   settings: s,
   presets: promptPresets([]),
   previous: [],
-  protectExtra: extra ? { autopic: extra.autopic, loreveil: extra.loreveil } : undefined,
+  loreveil: extra?.loreveil,
 });
 
 describe('translation with a fake model (13-1)', () => {
@@ -199,53 +199,46 @@ describe('translation with a fake model (13-1)', () => {
   });
 });
 
-describe('AutoPic always excluded (13-2)', () => {
-  const block = '<autopic>\n<scene>a girl</scene>\n<apchar ref="x">tall</apchar>\n<uc>bad</uc>\n</autopic>';
+describe('explicit excluded tags', () => {
+  const block = '<widget>\n<scene>a girl</scene>\n<apchar ref="x">tall</apchar>\n<uc>bad</uc>\n</widget>';
   const src = `She smiles.\n\n${block}\n\nThe end.`;
 
-  test('held whole even with empty excludeTags and protectHtml off', () => {
-    const p = protect(src, opts({ autopic: true }));
+  test('held whole when listed with protectHtml off', () => {
+    const p = protect(src, opts({ excludeTags: 'widget' }));
     expect(p.pieces).toEqual([block]);
     expect(p.blocks).toEqual([block]);
-    expect(p.text).not.toContain('autopic');
-    expect(protect(src, opts()).pieces).toEqual([]); // switch off = old behaviour
+    expect(p.text).not.toContain('widget');
+    expect(protect(src, opts()).pieces).toEqual([]); // Unlisted tags stay translatable.
   });
 
   test('uppercase, attributes, unclosed and nested', () => {
-    expect(held('<AutoPic id="1">x</AUTOPIC>', opts({ autopic: true }))).toEqual(['<AutoPic id="1">x</AUTOPIC>']);
-    expect(held('a <autopic>rest of message', opts({ autopic: true }))).toEqual(['<autopic>rest of message']);
-    expect(held('<autopic><autopic>i</autopic></autopic> z', opts({ autopic: true }))).toEqual(['<autopic><autopic>i</autopic></autopic>']);
+    expect(held('<Widget id="1">x</WIDGET>', opts({ excludeTags: 'widget' }))).toEqual(['<Widget id="1">x</WIDGET>']);
+    expect(held('a <widget>rest of message', opts({ excludeTags: 'widget' }))).toEqual(['<widget>rest of message']);
+    expect(held('<widget><widget>i</widget></widget> z', opts({ excludeTags: 'widget' }))).toEqual(['<widget><widget>i</widget></widget>']);
   });
 
   test('never sent to the model and restored byte-identical', async () => {
     const sent: string[] = [];
-    const r = await translate({ ...job(src, base()), direction: 'incoming', protectExtra: { autopic: true, loreveil: null } }, {
+    const r = await translate({ ...job(src, base({ excludeTags: 'widget' })), direction: 'incoming' }, {
       async complete(req) {
         sent.push(target(req));
         return { text: prefix(target(req)), finishReason: 'stop' };
       },
     });
-    expect(sent.join('')).not.toMatch(/autopic|scene|girl/);
+    expect(sent.join('')).not.toMatch(/widget|scene|girl/);
     expect(recordToText(r)).toContain(block);
-  });
-
-  test('protectExtraFor: loreveil only for outgoing', () => {
-    expect(protectExtraFor(DEFAULT_COMPAT, 'incoming', undefined)).toEqual({ autopic: true, loreveil: null });
-    expect(protectExtraFor(DEFAULT_COMPAT, 'outgoing', undefined).loreveil).toEqual(LV);
-    expect(protectExtraFor({ loreveil: false, autopic: false }, 'outgoing', undefined)).toEqual({ autopic: false, loreveil: null });
   });
 });
 
 describe('single-instance blocks per display mode (13-2)', () => {
-  const block = '<autopic>\n<scene>x</scene>\n</autopic>';
+  const block = '<widget>\n<scene>x</scene>\n</widget>';
   const code = '```html\n<div>demo</div>\n```';
   const content = `Intro.\n\n${block}\n\n${code}\n\nOutro.`;
-  const settings = (displayMode: ChatSettings['displayMode']) => base({ displayMode, protectCode: true });
-  const extra = { autopic: true, loreveil: null };
-  const options = { protect: extra, singleInstance: true };
+  const settings = (displayMode: ChatSettings['displayMode']) => base({ displayMode, protectCode: true, excludeTags: 'widget' });
+  const options = { singleInstance: true };
 
   function record(s: ChatSettings): TranslationRecord {
-    const p = protect(content, { ...s, ...extra });
+    const p = protect(content, s);
     return { parts: [p.text.replace('Intro.', '도입.').replace('Outro.', '끝.')], pieces: p.pieces, unit: 'whole', total: 1, truncatedPart: -1, status: 'done', updatedAt: 1 };
   }
   const count = (text: string, needle: string) => text.split(needle).length - 1;
@@ -270,7 +263,7 @@ describe('single-instance blocks per display mode (13-2)', () => {
 
   test('paragraph view already shows such a paragraph once', () => {
     const s = settings('paragraph');
-    const p = protect(content, { ...s, ...extra });
+    const p = protect(content, s);
     const r: TranslationRecord = { ...record(s), unit: 'paragraph', total: p.text.split('\n\n').length, parts: p.text.split('\n\n').map((x) => x.replace('Intro.', '도입.')) };
     const out = renderMessage(content, r, { ...s, translationUnit: 'paragraph' }, DEFAULT_VIEW, options);
     expect(count(out, block)).toBe(1);
@@ -289,7 +282,7 @@ describe('single-instance blocks per display mode (13-2)', () => {
   test('a side that would be empty is dropped; a message of only a block shows nothing new', () => {
     const s = settings('below');
     const only = `${block}`;
-    const p = protect(only, { ...s, ...extra });
+    const p = protect(only, s);
     const r: TranslationRecord = { parts: [`${p.text} 번역`], pieces: p.pieces, unit: 'whole', total: 1, truncatedPart: -1, status: 'done', updatedAt: 1 };
     const out = renderMessage(only, r, s, DEFAULT_VIEW, options);
     expect(count(out, block)).toBe(1);
@@ -306,7 +299,7 @@ describe('single-instance blocks per display mode (13-2)', () => {
   describe('blocks are dropped by position (F1)', () => {
     const tail = (s: 'below' | 'above') => ({ ...settings(s), protectHtml: true }) as ChatSettings;
     const make = (content: string, s: ChatSettings, translate: (t: string) => string) => {
-      const p = protect(content, { ...s, ...extra });
+      const p = protect(content, s);
       const r: TranslationRecord = { parts: [translate(p.text)], pieces: p.pieces, unit: 'whole', total: 1, truncatedPart: -1, status: 'done', updatedAt: 1 };
       return renderMessage(content, r, s, DEFAULT_VIEW, options);
     };
@@ -459,30 +452,32 @@ describe('Tavern Helper re-render (13-3)', () => {
 
 describe('compat settings (13-4)', () => {
   test('defaults on, debug off; junk normalizes', () => {
-    expect(normalizeStore(null).compat).toEqual({ loreveil: true, autopic: true, thRerender: true, debug: false });
-    expect(normalizeCompat({ loreveil: false, autopic: 'x', debug: true })).toEqual({ loreveil: false, autopic: true, thRerender: true, debug: true });
+    expect(normalizeStore(null).compat).toEqual({ loreveil: true, singleInstance: true, thRerender: true, debug: false });
+    expect(normalizeCompat({ loreveil: false, singleInstance: 'x', debug: true })).toEqual({ loreveil: false, singleInstance: true, thRerender: true, debug: true });
     const store = normalizeStore({ compat: { thRerender: false } });
     expect(normalizeStore(JSON.parse(JSON.stringify(store)))).toEqual(store);
   });
 
   test('saved globally at once and reloaded', () => {
     const f = installFake({ chatId: 'c' });
-    saveCompat({ loreveil: false, autopic: true, thRerender: false, debug: true });
-    expect(f.ctx.extensionSettings.st_translator.compat).toEqual({ loreveil: false, autopic: true, thRerender: false, debug: true });
+    saveCompat({ loreveil: false, singleInstance: true, thRerender: false, debug: true });
+    expect(f.ctx.extensionSettings.st_translator.compat).toEqual({ loreveil: false, singleInstance: true, thRerender: false, debug: true });
     expect(f.saves.settings).toBe(1);
   });
 
   test('computeDisplayText uses compat only when given', async () => {
-    const content = 'Hi.\n\n<autopic><scene>s</scene></autopic>';
+    const content = 'Hi.\n\n<widget><scene>s</scene></widget>';
     const m: any = msg(content);
     installFake({ chatId: 'c', chat: [m] });
-    await translateAt(0, false);
-    const s = { ...DEFAULT_SETTINGS, displayMode: 'below' as const, protectHtml: false, excludeTags: '' };
+    const s = { ...DEFAULT_SETTINGS, displayMode: 'below' as const, protectHtml: false, excludeTags: 'widget' };
     saveSettings(s, true);
+    await translateAt(0, false);
     const plain = computeDisplayText(m, s, DEFAULT_VIEW)!;
     expect(plain.split('<scene>').length - 1).toBe(2);
     expect(computeDisplayText(m, s, DEFAULT_VIEW, DEFAULT_COMPAT)!.split('<scene>').length - 1).toBe(1);
-    expect(computeDisplayText(m, s, DEFAULT_VIEW, { ...DEFAULT_COMPAT, autopic: false, thRerender: false })!.split('<scene>').length - 1).toBe(2);
+    expect(computeDisplayText(m, s, DEFAULT_VIEW, { ...DEFAULT_COMPAT, singleInstance: false, thRerender: false })!.split('<scene>').length - 1).toBe(2);
+    expect(computeDisplayText(m, s, DEFAULT_VIEW, { ...DEFAULT_COMPAT, singleInstance: false, thRerender: true })!.split('<scene>').length - 1).toBe(1);
+    expect(computeDisplayText(m, s, DEFAULT_VIEW, { ...DEFAULT_COMPAT, singleInstance: true, thRerender: false })!.split('<scene>').length - 1).toBe(1);
     expect(sourceHash(content)).toBeTruthy();
   });
 });

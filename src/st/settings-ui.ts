@@ -640,7 +640,7 @@ export function mountSettings(api: TranslatorApi): () => void {
       el('div', { class: 'stt-section' }, [
         el('h3', {}, ['다른 확장과 함께 쓰기']),
         compatCheck('LoreVeil 태그 보호 (내 메시지 번역)', 'loreveil'),
-        compatCheck('오토픽 블록 보호 (<autopic> 번역 안 함, 한 번만 표시)', 'autopic'),
+        compatCheck('제외 태그·코드 블록은 한 번만 표시 (원문과 번역을 함께 보여 줄 때)', 'singleInstance'),
         compatCheck('JS 러너(Tavern Helper) 다시 그리기', 'thRerender'),
         compatCheck('디버그 로그', 'debug'),
         el('div', { class: 'stt-note' }, ['이 항목은 바로 저장됩니다. LoreVeil 의 속성 방식(<div 태그>)은 위의 HTML 보호가 켜져 있어야 닫는 태그까지 지켜집니다.']),

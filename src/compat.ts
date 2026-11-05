@@ -1,8 +1,6 @@
-// Pure helpers for living next to LoreVeil, AutoPic and Tavern Helper.
+// Pure helpers for living next to LoreVeil and Tavern Helper.
 // No host access here; the ST layer feeds in extensionSettings.loreVeil and our own compat switches.
 
-import type { CompatSettings } from './shared';
-import type { ProtectExtra } from './translate/engine';
 import { type LoreVeilConfig, LOREVEIL_DEFAULT_TAG } from './translate/protect';
 
 const LOREVEIL_TAG_NAME = /^[a-z][a-z0-9_:-]*$/;
@@ -21,14 +19,6 @@ export function loreveilConfig(raw: unknown): LoreVeilConfig {
     if (LOREVEIL_TAG_NAME.test(tag) && !tags.includes(tag)) tags.push(tag);
   }
   return { tags, attribute: v.attribute !== false };
-}
-
-/** Extra protect options for one translation direction. LoreVeil only matters for my outgoing messages. */
-export function protectExtraFor(compat: Pick<CompatSettings, 'loreveil' | 'autopic'>, direction: 'incoming' | 'outgoing', loreveil: unknown): ProtectExtra {
-  return {
-    autopic: compat.autopic,
-    loreveil: compat.loreveil && direction === 'outgoing' ? loreveilConfig(loreveil) : null,
-  };
 }
 
 /** Marks where a dropped block used to be; chosen so it does not occur in the text. */

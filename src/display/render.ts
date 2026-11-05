@@ -2,14 +2,14 @@
 
 import { blankPieces, blockSentinel, removeSentinels } from '../compat';
 import type { ChatSettings, TranslationRecord, ViewSettings } from '../shared';
-import { type ProtectExtra, recordToText } from '../translate/engine';
+import { recordToText } from '../translate/engine';
 import { cleanReply } from '../translate/clean-reply';
-import { markersIn, protect, restore } from '../translate/protect';
+import { type LoreVeilConfig, markersIn, protect, restore } from '../translate/protect';
 import { buildParagraphView } from './paragraph-view';
 
 export interface RenderOptions {
-  /** AutoPic / LoreVeil protection used when the record was made (must match for paragraph pairing). */
-  protect?: ProtectExtra;
+  /** LoreVeil protection used when the record was made (must match for paragraph pairing). */
+  loreveil?: LoreVeilConfig | null;
   /**
    * In modes that show both sides, whole-element excluded blocks and fenced code appear once: on the side
    * that carries the original (below / collapsed: original; above / collapsed-source: translation).
@@ -20,7 +20,7 @@ export interface RenderOptions {
 function blocksOf(content: string, settings: ChatSettings, options: RenderOptions) {
   if (!options.singleInstance) return null;
   try {
-    const p = protect(content, { ...settings, ...options.protect });
+    const p = protect(content, { ...settings, loreveil: options.loreveil });
     return p.blockMarkers.length ? p : null;
   } catch {
     return null;
@@ -30,7 +30,7 @@ function blocksOf(content: string, settings: ChatSettings, options: RenderOption
 export function renderMessage(content: string, record: TranslationRecord | null | undefined, settings: ChatSettings, view: ViewSettings, options: RenderOptions = {}): string {
   // Keep the original visible until translated text exists, as in the backend render processor.
   if (!record || !record.parts.some((p) => cleanReply(p).trim())) return content;
-  if (settings.displayMode === 'paragraph') return buildParagraphView(content, record, settings, view.paragraphView, view.paragraphOrder, options.protect);
+  if (settings.displayMode === 'paragraph') return buildParagraphView(content, record, settings, view.paragraphView, view.paragraphOrder, options.loreveil);
   const mode = settings.displayMode;
   const held = mode === 'only' ? null : blocksOf(content, settings, options);
   // Blocks are dropped by their marker (position), so identical text elsewhere in the message is never touched.

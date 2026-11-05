@@ -8,7 +8,7 @@
     "js": "dist/index.js",
     "css": "style.css",
     "author": "mallang0723",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "homePage": "https://github.com/mallang0723/ST-Translator",
     "auto_update": true
 }

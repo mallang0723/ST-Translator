@@ -6,10 +6,10 @@
 import { currentIllustrations, normalizeIllustrations } from '../illustrations';
 
 import type { ChatSettings, ParagraphOrder, ParagraphView, TranslationRecord } from '../shared';
-import { partSources, type ProtectExtra, recordToText } from '../translate/engine';
+import { partSources, recordToText } from '../translate/engine';
 import { cleanReply } from '../translate/clean-reply';
 import { htmlGroups, splitParagraphs } from '../translate/paragraphs';
-import { protect, restore } from '../translate/protect';
+import { type LoreVeilConfig, protect, restore } from '../translate/protect';
 
 export const PENDING_TEXT = '아직 번역하지 않은 문단입니다.';
 
@@ -30,10 +30,10 @@ function sameArray(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((v, i) => normalizeIllustrations(v) === normalizeIllustrations(b[i]!));
 }
 
-export function pairParagraphs(content: string, record: TranslationRecord, settings: ChatSettings, extra?: ProtectExtra): Pairing {
+export function pairParagraphs(content: string, record: TranslationRecord, settings: ChatSettings, loreveil?: LoreVeilConfig | null): Pairing {
   if (record.unit === 'paragraph') {
     try {
-      const prot = protect(content, { ...settings, ...extra });
+      const prot = protect(content, { ...settings, loreveil });
       const sources = partSources(prot.text, { ...settings, translationUnit: 'paragraph' });
       if (sameArray(prot.pieces, record.pieces) && sources.length === record.total) {
         const current = currentIllustrations(content);
@@ -83,8 +83,8 @@ function block(cls: string, label: string, body: string): string {
   return `<div class="${cls}"><div class="stt-pr-label">${label}</div>\n\n${body}\n\n</div>`;
 }
 
-export function buildParagraphView(content: string, record: TranslationRecord, settings: ChatSettings, view: ParagraphView, order: ParagraphOrder = 'source-first', extra?: ProtectExtra): string {
-  const pairing = pairParagraphs(content, record, settings, extra);
+export function buildParagraphView(content: string, record: TranslationRecord, settings: ChatSettings, view: ParagraphView, order: ParagraphOrder = 'source-first', loreveil?: LoreVeilConfig | null): string {
+  const pairing = pairParagraphs(content, record, settings, loreveil);
   const pairs = groupPairs(pairing.pairs);
   const whole = pairing.kind === 'whole';
   const out: string[] = [`<div class="stt-pr${view === 'tap' ? ' stt-pr-tap' : ''}${view !== 'tap' && order === 'translation-first' ? ' stt-pr-tfirst' : ''}">`];

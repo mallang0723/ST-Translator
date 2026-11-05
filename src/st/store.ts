@@ -74,8 +74,8 @@ export function connectionId(): string {
 
 function persistGlobal(): void {
   const c = ctx();
-  const { view, compat, userPresets, userBundles, defaults } = store;
-  c.extensionSettings[METADATA_KEY] = { version: 1, view, compat, userPresets, userBundles, defaults };
+  const { view, compat, userPresets, userBundles, defaults, legacyExcludeTags } = store;
+  c.extensionSettings[METADATA_KEY] = { version: 1, view, compat, userPresets, userBundles, defaults, ...(legacyExcludeTags ? { legacyExcludeTags } : {}) };
   c.saveSettingsDebounced();
 }
 
