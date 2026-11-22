@@ -6,6 +6,7 @@
 import { currentIllustrations, normalizeIllustrations } from '../illustrations';
 
 import type { ChatSettings, ParagraphOrder, ParagraphView, TranslationRecord } from '../shared';
+import { softenIndentedCode } from './indent';
 import { partSources, recordToText } from '../translate/engine';
 import { cleanReply } from '../translate/clean-reply';
 import { htmlGroups, splitParagraphs } from '../translate/paragraphs';
@@ -58,7 +59,7 @@ export function pairParagraphs(content: string, record: TranslationRecord, setti
   if (sources.length === translations.length && record.status !== 'partial') {
     return { kind: 'matched', pairs: sources.map((source, i) => ({ source, translation: translations[i]! })) };
   }
-  return { kind: 'whole', pairs: [{ source: content.trim(), translation: recordToText(record, content).trim() || null }] };
+  return { kind: 'whole', pairs: [{ source: content.trim(), translation: softenIndentedCode(recordToText(record, content)).trim() || null }] };
 }
 
 /** Merges pairs whose HTML spans several paragraphs, so every block is rendered whole. */

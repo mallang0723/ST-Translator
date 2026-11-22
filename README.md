@@ -150,7 +150,7 @@ SillyTavern에도 내장 "Chat Translation"이 있지만, 이 확장은 자체 �
 
 ## 검증 기록
 
-- **자동 테스트(`bun test`) 366개**: LV-Translator에서 가져온 순수 로직 테스트 194개(프리셋 SHA-256 지문, 1.5.4 요청 기록과 글자 단위 일치 포함)와, SillyTavern 연결·저장·스와이프·표시·호환 테스트(0.2.0 설정 이전·기존 번역 기록 호환 포함). 타입 검사와 빌드도 통과.
+- **자동 테스트(`bun test`) 370개**: LV-Translator에서 가져온 순수 로직 테스트 194개(프리셋 SHA-256 지문, 1.5.4 요청 기록과 글자 단위 일치 포함)와, SillyTavern 연결·저장·스와이프·표시·호환 테스트(0.2.0 설정 이전·기존 번역 기록 호환 포함). 타입 검사와 빌드도 통과.
 - **실제 SillyTavern 1.19.0(release) + 가짜 OpenAI 호환 서버 + 헤드리스 브라우저**에서 확인한 것:
   - 설치·설정 서랍·마법봉 메뉴, 수동·자동 번역(연결 프로필, temperature 0.3), 상태창 HTML 보존
   - 표시 방식 6종과 문단 대조(글자 크기 조절), 새로고침 후 유지, **확장을 꺼도 번역 유지**
@@ -180,6 +180,7 @@ SillyTavern은 `dist/index.js`를 그대로 읽으므로 `dist/`를 커밋합니
 - `src/translate/paragraphs.ts` — 문단 나누기, 글자 없는 문단, HTML 묶기(Paragraph Reader 0.2.0 이식)
 - `src/display/paragraph-view.ts` — 문단 대조 화면
 - `src/display/render.ts` — 표시 방식별 메시지 조립
+- `src/display/indent.ts` — 번역문에서 빈 줄 뒤 4칸 들여쓰기 줄이 코드 블록으로 그려지지 않게 함(0.2.1, 펜스 코드는 그대로)
 - `src/st/` — SillyTavern 호스트 연결(설정 저장, 번역 기록, 자동 번역, 표시, 메시지 버튼, 내 메시지 번역, 입력창 버튼, 설정 서랍)
 - `src/message-ui.ts` — 버튼 상태, 스와이프별 번역 삭제 같은 순수 로직
 - `tests/fixtures/upstream-requests.json` — 1.5.4가 실제로 만든 번역 요청(비교 기준)

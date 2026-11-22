@@ -5,6 +5,7 @@ import type { ChatSettings, TranslationRecord, ViewSettings } from '../shared';
 import { recordToText } from '../translate/engine';
 import { cleanReply } from '../translate/clean-reply';
 import { type LoreVeilConfig, markersIn, protect, restore } from '../translate/protect';
+import { softenIndentedCode } from './indent';
 import { buildParagraphView } from './paragraph-view';
 
 export interface RenderOptions {
@@ -38,7 +39,7 @@ export function renderMessage(content: string, record: TranslationRecord | null 
   const ownMarkers = held ? held.blockMarkers.filter((n) => record.pieces[n - 1] === held.pieces[n - 1]) : [];
   const sentinel = blockSentinel(content, ...record.parts, ...record.pieces);
   const originalFirst = mode !== 'above' && mode !== 'collapsed-source';
-  let text = recordToText(originalFirst && ownMarkers.length ? { ...record, pieces: blankPieces(record.pieces, ownMarkers, sentinel) } : record, content);
+  let text = softenIndentedCode(recordToText(originalFirst && ownMarkers.length ? { ...record, pieces: blankPieces(record.pieces, ownMarkers, sentinel) } : record, content));
   if (mode === 'only') return text;
   if (originalFirst && ownMarkers.length) text = removeSentinels(text, sentinel);
   const hasBlocks = ownMarkers.length > 0;

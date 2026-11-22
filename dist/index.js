@@ -1263,8 +1263,8 @@ function migrateStore(value) {
   const { autopic: _old, ...currentCompat } = compat;
   if (legacy)
     currentCompat.singleInstance = enabled;
-  const migrateSettings = (value2, fallbackTags) => {
-    const settings = object(value2);
+  const migrateSettings = (value, fallbackTags) => {
+    const settings = object(value);
     if (!tags.length || settings.excludeTagsVersion === 1)
       return settings;
     const have = lenientTags(typeof settings.excludeTags === "string" ? settings.excludeTags : fallbackTags);
@@ -1816,14 +1816,14 @@ async function translate(job, deps) {
         const i = record.total - 1;
         const before = record.parts[i];
         record.truncatedPart = i;
-        const complete2 = await continuePart(i, 1);
+        const complete = await continuePart(i, 1);
         const problem = checkMarkers(sources[i], record.parts[i], prot.ordered);
         if (problem) {
           record.parts[i] = before;
           record.truncatedPart = -1;
           throw new TranslationError(`${problem} 이어서 번역한 내용은 버렸습니다.`, record);
         }
-        if (!complete2)
+        if (!complete)
           return finish();
         record.truncatedPart = -1;
       }
@@ -1846,6 +1846,45 @@ async function translate(job, deps) {
   }
 }
 
+// src/display/indent.ts
+var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+function softenIndentedCode(text) {
+  if (!/(^|\n)[ \t]{4}|(^|\n)[ ]{0,3}\t/.test(text))
+    return text;
+  const lines = text.split(`
+`);
+  let fence = null;
+  let afterBlank = true;
+  for (let i = 0;i < lines.length; i++) {
+    const line = lines[i];
+    const bare = line.replace(/\r$/, "");
+    const marker = FENCE.exec(bare);
+    if (fence) {
+      if (marker && marker[1][0] === fence.char && marker[1].length >= fence.length && bare.trim() === marker[1])
+        fence = null;
+      afterBlank = false;
+      continue;
+    }
+    if (marker) {
+      fence = { char: marker[1][0], length: marker[1].length };
+      afterBlank = false;
+      continue;
+    }
+    if (!bare.trim()) {
+      afterBlank = true;
+      continue;
+    }
+    if (afterBlank) {
+      const lead = /^[ \t]*/.exec(line)[0];
+      if (lead.replace(/\t/g, "    ").length >= 4)
+        lines[i] = `   ${line.slice(lead.length)}`;
+    }
+    afterBlank = false;
+  }
+  return lines.join(`
+`);
+}
+
 // src/display/paragraph-view.ts
 var PENDING_TEXT = "아직 번역하지 않은 문단입니다.";
 function sameArray2(a, b) {
@@ -1855,10 +1894,10 @@ function pairParagraphs(content, record, settings, loreveil) {
   if (record.unit === "paragraph") {
     try {
       const prot = protect(content, { ...settings, loreveil });
-      const sources2 = partSources(prot.text, { ...settings, translationUnit: "paragraph" });
-      if (sameArray2(prot.pieces, record.pieces) && sources2.length === record.total) {
+      const sources = partSources(prot.text, { ...settings, translationUnit: "paragraph" });
+      if (sameArray2(prot.pieces, record.pieces) && sources.length === record.total) {
         const current = currentIllustrations(content);
-        const pairs = sources2.map((s, i) => {
+        const pairs = sources.map((s, i) => {
           const text = cleanReply(record.parts[i] ?? "");
           return {
             source: restore(s, prot.pieces),
@@ -1880,7 +1919,7 @@ ${rest}`;
   if (sources.length === translations.length && record.status !== "partial") {
     return { kind: "matched", pairs: sources.map((source, i) => ({ source, translation: translations[i] })) };
   }
-  return { kind: "whole", pairs: [{ source: content.trim(), translation: recordToText(record, content).trim() || null }] };
+  return { kind: "whole", pairs: [{ source: content.trim(), translation: softenIndentedCode(recordToText(record, content)).trim() || null }] };
 }
 function groupPairs(pairs) {
   return htmlGroups(pairs.map((p) => p.source)).map((group) => {
@@ -1975,7 +2014,7 @@ function renderMessage(content, record, settings, view, options = {}) {
   const ownMarkers = held ? held.blockMarkers.filter((n) => record.pieces[n - 1] === held.pieces[n - 1]) : [];
   const sentinel = blockSentinel(content, ...record.parts, ...record.pieces);
   const originalFirst = mode !== "above" && mode !== "collapsed-source";
-  let text = recordToText(originalFirst && ownMarkers.length ? { ...record, pieces: blankPieces(record.pieces, ownMarkers, sentinel) } : record, content);
+  let text = softenIndentedCode(recordToText(originalFirst && ownMarkers.length ? { ...record, pieces: blankPieces(record.pieces, ownMarkers, sentinel) } : record, content));
   if (mode === "only")
     return text;
   if (originalFirst && ownMarkers.length)
@@ -2306,8 +2345,8 @@ function createCompleter(opts) {
           throw new Error(causeMessage(inner), { cause: e });
         throw e;
       }
-      const text2 = c.extractMessageFromData(json, selected);
-      return { text: typeof text2 === "string" ? text2 : "", finishReason: finishReasonOf(json) };
+      const text = c.extractMessageFromData(json, selected);
+      return { text: typeof text === "string" ? text : "", finishReason: finishReasonOf(json) };
     }
     const text = await withAbort(c.generateRaw({ systemPrompt: req.system, prompt: req.user, responseLength: opts.maxTokens }), opts.signal);
     return { text: typeof text === "string" ? text : "" };
@@ -2362,11 +2401,11 @@ function writeTranslations(message, change, swipe) {
       return { v: 1, entries: {} };
     info.extra = info.extra ?? {};
     const raw = info.extra[METADATA_KEY];
-    const mt2 = structuredClone(raw && typeof raw === "object" && raw.entries ? raw : { v: 1, entries: {} });
-    change(mt2, message);
-    prune(mt2);
-    info.extra[METADATA_KEY] = mt2;
-    return mt2;
+    const mt = structuredClone(raw && typeof raw === "object" && raw.entries ? raw : { v: 1, entries: {} });
+    change(mt, message);
+    prune(mt);
+    info.extra[METADATA_KEY] = mt;
+    return mt;
   }
   const mt = structuredClone(readTranslations(message) ?? { v: 1, entries: {} });
   change(mt, message);
@@ -2654,7 +2693,7 @@ function contextBefore(messages, end) {
     return { role: m.is_user ? "user" : "assistant", content: m.mes, translation: entry && entry.parts.length ? recordToText(entry) : null };
   });
 }
-async function translateMessage(chatId2, message, mode, options) {
+async function translateMessage(chatId, message, mode, options) {
   while (jobs.has(message)) {
     if (!options.automatic) {
       toast("info", "이 메시지는 이미 번역 중입니다.");
@@ -2662,7 +2701,7 @@ async function translateMessage(chatId2, message, mode, options) {
     }
     await jobs.get(message).finished;
   }
-  if (currentChatId() !== chatId2)
+  if (currentChatId() !== chatId)
     return;
   const controller = new AbortController;
   let finish;
@@ -2670,7 +2709,7 @@ async function translateMessage(chatId2, message, mode, options) {
     finish = resolve;
   });
   const swipe = captureSwipe(message);
-  const job = { chatId: chatId2, controller, finished, silent: false, message, swipe };
+  const job = { chatId, controller, finished, silent: false, message, swipe };
   jobs.set(message, job);
   running.add(job);
   let source;
@@ -2683,12 +2722,12 @@ async function translateMessage(chatId2, message, mode, options) {
       unhid = true;
       setHiddenEverywhere(message, false);
     }
-    await updateTranslations(chatId2, message, change, final, at);
+    await updateTranslations(chatId, message, change, final, at);
     if (!final)
       emitView(message, at);
   };
   try {
-    const store2 = getStore();
+    const store = getStore();
     const settings2 = settings();
     if (options.automatic && !settings2.autoTranslate)
       return;
@@ -2708,18 +2747,18 @@ async function translateMessage(chatId2, message, mode, options) {
     if (skipFresh(mode, existing, options.force))
       return;
     emitView(message, resolveSwipe(message, swipe));
-    const write = (mt2, record2) => {
+    const write = (mt2, record) => {
       if (existingKey)
         delete mt2.entries[existingKey];
       delete mt2.entries[rawSourceHash(source)];
-      mt2.entries[hash] = record2;
+      mt2.entries[hash] = record;
     };
     const record = await translate({
       direction: "incoming",
       source,
       settings: settings2,
-      store: store2,
-      presets: promptPresets(store2.userPresets),
+      store,
+      presets: promptPresets(store.userPresets),
       previous: contextBefore(chat, index),
       resume: mode === "continue" ? existing : undefined
     }, {
@@ -2800,18 +2839,18 @@ function messageAt(id) {
   return ctx().chat[id] ?? null;
 }
 async function translateAt(id, force) {
-  const chatId2 = currentChatId();
+  const chatId = currentChatId();
   const message = messageAt(id);
-  if (!chatId2 || !message)
+  if (!chatId || !message)
     return;
-  await translateMessage(chatId2, message, "fresh", { force, automatic: false });
+  await translateMessage(chatId, message, "fresh", { force, automatic: false });
 }
 async function continueAt(id) {
-  const chatId2 = currentChatId();
+  const chatId = currentChatId();
   const message = messageAt(id);
-  if (!chatId2 || !message)
+  if (!chatId || !message)
     return;
-  await translateMessage(chatId2, message, "continue", { force: true, automatic: false });
+  await translateMessage(chatId, message, "continue", { force: true, automatic: false });
 }
 function cancelMessage(message) {
   jobs.get(message)?.controller.abort();
@@ -2825,14 +2864,14 @@ function abortJobsExcept(keepChatId) {
   }
 }
 function setHidden(message, hidden) {
-  const chatId2 = currentChatId();
+  const chatId = currentChatId();
   setHiddenEverywhere(message, hidden);
-  if (chatId2)
-    saveChatIfCurrent(chatId2).catch(() => {});
+  if (chatId)
+    saveChatIfCurrent(chatId).catch(() => {});
   emitView(message);
 }
 async function deleteTranslation(message, sourceKey) {
-  const chatId2 = currentChatId();
+  const chatId = currentChatId();
   let target = currentSwipe(message);
   if (busyKind(message) === "here") {
     const job = jobs.get(message);
@@ -2842,33 +2881,33 @@ async function deleteTranslation(message, sourceKey) {
     if (target < 0)
       return;
   }
-  if (!chatId2 || indexOfMessage(message) < 0)
+  if (!chatId || indexOfMessage(message) < 0)
     return;
   const textOf = (m) => (target === currentSwipe(m) ? m.mes : m.swipes?.[target] ?? m.mes) ?? "";
-  await updateTranslations(chatId2, message, (mt, m) => clearTranslation(mt, sourceKey || recordKeyFor(mt, textOf(m)) || sourceHash(textOf(m))), true, target);
+  await updateTranslations(chatId, message, (mt, m) => clearTranslation(mt, sourceKey || recordKeyFor(mt, textOf(m)) || sourceHash(textOf(m))), true, target);
   emitView(message, target);
 }
 var SKIPPED_TYPES = new Set(["impersonate", "first_message"]);
 async function autoTranslate(id, type) {
   if (type && SKIPPED_TYPES.has(type))
     return;
-  const chatId2 = currentChatId();
+  const chatId = currentChatId();
   const message = messageAt(id);
-  if (!chatId2 || !message || message.is_user || message.is_system)
+  if (!chatId || !message || message.is_user || message.is_system)
     return;
   if (!settings().autoTranslate)
     return;
-  await translateMessage(chatId2, message, "fresh", { force: false, automatic: true }).catch((e) => console.warn("[st-translator] auto translate failed", e));
+  await translateMessage(chatId, message, "fresh", { force: false, automatic: true }).catch((e) => console.warn("[st-translator] auto translate failed", e));
 }
-async function translateOutgoing(chatId2, text, end) {
-  const store2 = getStore();
+async function translateOutgoing(chatId, text, end) {
+  const store = getStore();
   const settings2 = { ...settings(), autoContinue: true };
   const chat = ctx().chat;
   const previous = settings2.contextEnabled && settings2.contextIncludeUserInput ? contextBefore(chat, end ?? chat.length) : [];
   const controller = new AbortController;
   const timer = setTimeout(() => controller.abort(), 180000);
   try {
-    const record = await translate({ direction: "outgoing", source: text, settings: settings2, store: store2, presets: promptPresets(store2.userPresets), previous, loreveil: store2.compat.loreveil ? loreveilConfig(ctx().extensionSettings?.loreVeil) : null }, { complete: createCompleter({ chosenId: connectionId(), maxTokens: settings2.maxTokens, signal: controller.signal }) });
+    const record = await translate({ direction: "outgoing", source: text, settings: settings2, store, presets: promptPresets(store.userPresets), previous, loreveil: store.compat.loreveil ? loreveilConfig(ctx().extensionSettings?.loreVeil) : null }, { complete: createCompleter({ chosenId: connectionId(), maxTokens: settings2.maxTokens, signal: controller.signal }) });
     if (record.status !== "done")
       throw new Error("번역이 끝까지 되지 않았습니다.");
     const out = recordToText(record).trim();
@@ -2927,15 +2966,15 @@ function addButtons(row) {
   if (row.querySelector(`.${TRANSLATE_CLASS}`))
     return;
   const anchor = row.querySelector(":scope > .mes_edit");
-  const translate2 = makeButton(TRANSLATE_CLASS, "fa-solid fa-earth-asia");
-  translate2.title = "번역";
+  const translate = makeButton(TRANSLATE_CLASS, "fa-solid fa-earth-asia");
+  translate.title = "번역";
   const del = makeButton(DELETE_CLASS, "fa-solid fa-eraser");
   del.title = DELETE_TRANSLATION_LABEL;
   del.style.display = "none";
   if (anchor) {
-    anchor.before(translate2, del);
+    anchor.before(translate, del);
   } else {
-    row.append(translate2, del);
+    row.append(translate, del);
   }
 }
 function addButtonsEverywhere() {
@@ -2947,11 +2986,11 @@ function updateToolbar(mesEl, message, id) {
     return;
   addButtons(row);
   const state = toolbarState(viewOf(message, id));
-  const translate2 = row.querySelector(`.${TRANSLATE_CLASS}`);
+  const translate = row.querySelector(`.${TRANSLATE_CLASS}`);
   const del = row.querySelector(`.${DELETE_CLASS}`);
-  if (translate2) {
-    translate2.title = state.label;
-    translate2.classList.toggle("stt-busy", state.busy);
+  if (translate) {
+    translate.title = state.label;
+    translate.classList.toggle("stt-busy", state.busy);
   }
   if (del)
     del.style.display = state.canDelete ? "" : "none";
@@ -3030,18 +3069,18 @@ function mountToolbar() {
 function enableMarkdownInWrappers(html) {
   return html.replace(/<(div|details) class="([^"]*)"/g, (all, tag, cls) => /^stt-pr/.test(cls) && !/\bstt-pr-(label|note)\b/.test(cls) ? `<${tag} class="${cls}" markdown="1"` : all);
 }
-function computeDisplayText(message, settings2, view, compat) {
+function computeDisplayText(message, settings, view, compat) {
   const mt = readTranslations(message);
-  if (!mt || isTranslationHidden(mt.hidden, settings2.displayMode))
+  if (!mt || isTranslationHidden(mt.hidden, settings.displayMode))
     return null;
   const content = message.mes ?? "";
   const record = recordFor(mt, content);
   if (!record || !record.parts.some((p) => p.trim()))
     return null;
-  const out = renderMessage(content, record, settings2, view, compat ? { singleInstance: compat.singleInstance || compat.thRerender } : {});
+  const out = renderMessage(content, record, settings, view, compat ? { singleInstance: compat.singleInstance || compat.thRerender } : {});
   if (out === content)
     return null;
-  return settings2.displayMode === "paragraph" ? enableMarkdownInWrappers(out) : out;
+  return settings.displayMode === "paragraph" ? enableMarkdownInWrappers(out) : out;
 }
 var TH_RENDER_EVENT = "TH_REQUEST_RENDER_MESSAGE";
 function requestThRender(id) {
@@ -3090,9 +3129,9 @@ function applyDisplay(message, id, text, visible = true) {
     changed = true;
   }
   if (changed) {
-    const chatId2 = currentChatId();
-    if (chatId2)
-      scheduleSave(chatId2);
+    const chatId = currentChatId();
+    if (chatId)
+      scheduleSave(chatId);
     const el = visible ? messageElement(id) : null;
     if (el && !isEditing(el)) {
       try {
@@ -3354,8 +3393,8 @@ function createApi() {
     connections: listConnections,
     activeConnectionId: activeProfileId,
     saveConnection,
-    saveSettings(settings2, asDefault) {
-      saveSettings(settings2, asDefault);
+    saveSettings(settings, asDefault) {
+      saveSettings(settings, asDefault);
       refreshChat();
     },
     saveView(view) {
@@ -3398,18 +3437,18 @@ function notify(kind, text) {
 var POPUP_CONFIRM_FALLBACK = 2;
 var RESULT_YES_FALLBACK = 1;
 async function confirmPopup(text, okLabel = "확인") {
-  const ctx2 = stContext();
-  if (!ctx2.callGenericPopup)
+  const ctx = stContext();
+  if (!ctx.callGenericPopup)
     return window.confirm(text);
-  const result = await ctx2.callGenericPopup(text, ctx2.POPUP_TYPE?.CONFIRM ?? POPUP_CONFIRM_FALLBACK, "", { okButton: okLabel, cancelButton: "취소" });
-  return result === (ctx2.POPUP_RESULT?.AFFIRMATIVE ?? RESULT_YES_FALLBACK) || result === true;
+  const result = await ctx.callGenericPopup(text, ctx.POPUP_TYPE?.CONFIRM ?? POPUP_CONFIRM_FALLBACK, "", { okButton: okLabel, cancelButton: "취소" });
+  return result === (ctx.POPUP_RESULT?.AFFIRMATIVE ?? RESULT_YES_FALLBACK) || result === true;
 }
 async function formPopup(content, okLabel, onSubmit) {
-  const ctx2 = stContext();
-  if (!ctx2.callGenericPopup)
+  const ctx = stContext();
+  if (!ctx.callGenericPopup)
     return;
-  const yes = ctx2.POPUP_RESULT?.AFFIRMATIVE ?? RESULT_YES_FALLBACK;
-  await ctx2.callGenericPopup(content, ctx2.POPUP_TYPE?.CONFIRM ?? POPUP_CONFIRM_FALLBACK, "", {
+  const yes = ctx.POPUP_RESULT?.AFFIRMATIVE ?? RESULT_YES_FALLBACK;
+  await ctx.callGenericPopup(content, ctx.POPUP_TYPE?.CONFIRM ?? POPUP_CONFIRM_FALLBACK, "", {
     okButton: okLabel,
     cancelButton: "취소",
     wide: true,
@@ -3503,8 +3542,8 @@ function mountSettings(api) {
     }, 60000);
   }
   function openSettings() {
-    const block2 = document.getElementById("rm_extensions_block");
-    if (block2 && !block2.classList.contains("openDrawer")) {
+    const block = document.getElementById("rm_extensions_block");
+    if (block && !block.classList.contains("openDrawer")) {
       document.querySelector("#extensions-settings-button .drawer-toggle")?.click();
     }
     const content = drawer.querySelector(":scope > .inline-drawer-content");
@@ -3532,14 +3571,14 @@ function mountSettings(api) {
   let viewSaveTimer = null;
   let localView = { ...DEFAULT_VIEW };
   let fontHost = null;
-  function applyFontVars2() {
+  function applyFontVars() {
     const chat = document.getElementById("chat");
     chat?.style.setProperty("--stt-source-size", `${localView.sourceFontSize}px`);
     chat?.style.setProperty("--stt-translation-size", `${localView.translationFontSize}px`);
   }
   function changeFonts(values) {
     localView = normalizeView({ ...localView, ...values });
-    applyFontVars2();
+    applyFontVars();
     fontStatusText = "크기 저장 중…";
     renderFonts();
     if (viewSaveTimer)
@@ -3588,12 +3627,12 @@ function mountSettings(api) {
     dirty = false;
     markDirtyUi?.();
   }
-  function check(label, key, onChange2) {
+  function check(label, key, onChange) {
     const input = el2("input", { type: "checkbox", checked: draft[key] === true });
     input.addEventListener("change", () => {
       draft[key] = input.checked;
       markDirty();
-      onChange2?.();
+      onChange?.();
     });
     return el2("label", { class: "checkbox_label stt-check" }, [input, el2("span", {}, [label])]);
   }
@@ -3623,10 +3662,10 @@ function mountSettings(api) {
     });
     return el2("label", { class: "stt-field" }, [el2("span", {}, [label]), n]);
   }
-  function select(label, value, options, onChange2, unsaved = true, rerender = false) {
+  function select(label, value, options, onChange, unsaved = true, rerender = false) {
     const s = el2("select", { class: "text_pole" }, options.map(([v, l]) => el2("option", { value: v, selected: v === value }, [l])));
     s.addEventListener("change", () => {
-      onChange2(s.value);
+      onChange(s.value);
       if (unsaved)
         markDirty();
       if (rerender)
@@ -3634,14 +3673,14 @@ function mountSettings(api) {
     });
     return el2("label", { class: "stt-field" }, [el2("span", {}, [label]), s]);
   }
-  function promptSection(direction, presets2) {
+  function promptSection(direction, presets) {
     const presetKey = direction === "incoming" ? "incomingPresetId" : "outgoingPresetId";
     const promptKey = direction === "incoming" ? "incomingPrompt" : "outgoingPrompt";
     const presetId = draft[presetKey];
-    const preset = presets2.find((p) => p.id === presetId);
+    const preset = presets.find((p) => p.id === presetId);
     const inherit = !preset || presetId === INHERIT_PRESET_ID;
     const box = el2("div", { class: "stt-field" });
-    const options = presets2.map((p) => [p.id, p.builtin ? p.name : `${p.name} (내 프리셋)`]);
+    const options = presets.map((p) => [p.id, p.builtin ? p.name : `${p.name} (내 프리셋)`]);
     box.append(select(direction === "incoming" ? "응답 번역 프롬프트 (Incoming)" : "내 메시지 번역 프롬프트 (Outgoing)", presetId, options, (v) => {
       draft[presetKey] = v;
     }, true, true));
@@ -3675,12 +3714,12 @@ function mountSettings(api) {
       }
     });
   }
-  function presetManager(presets2) {
-    const mine = presets2.filter((p) => !p.builtin);
+  function presetManager(presets) {
+    const mine = presets.filter((p) => !p.builtin);
     const row = el2("div", { class: "stt-row" }, [
       button2("+ 새 프리셋", () => editPreset(null)),
       button2("기본 프리셋 복사해서 새로 만들기", () => {
-        const base = presets2.find((p) => p.id === draft.incomingPresetId && p.prompt);
+        const base = presets.find((p) => p.id === draft.incomingPresetId && p.prompt);
         editPreset(base ? { ...base, id: "", name: `${base.name} 사본`, builtin: false } : null);
       }, "", "응답 번역에 선택된 프리셋을 복사합니다")
     ]);
@@ -3812,15 +3851,15 @@ function mountSettings(api) {
   function buildPanel() {
     const keepScroll = scrollParent();
     const scrollTop = keepScroll?.scrollTop ?? 0;
-    const chatId2 = api.chatId();
-    const presets2 = api.presets();
+    const chatId = api.chatId();
+    const presets = api.presets();
     const connections = api.connections();
-    const store2 = api.getStore();
+    const store = api.getStore();
     if (!dirty) {
       draft = { ...api.settings() };
-      draft.connectionId = effectiveConnectionId(store2, chatId2);
+      draft.connectionId = effectiveConnectionId(store, chatId);
     }
-    if (draft.bundleId && !store2.userBundles.some((b) => b.id === draft.bundleId))
+    if (draft.bundleId && !store.userBundles.some((b) => b.id === draft.bundleId))
       draft.bundleId = "";
     const connectionOptions = [
       ["", "자동 (고른 연결 → 지금 쓰는 연결 프로필 → 지금 쓰는 API)"],
@@ -3832,7 +3871,7 @@ function mountSettings(api) {
     const saveRow = el2("div", { class: "stt-row stt-sticky" }, [
       saveNotice,
       button2("저장", () => save(false), "stt-primary"),
-      chatId2 ? button2("저장 + 새 채팅 기본값으로", () => save(true)) : null,
+      chatId ? button2("저장 + 새 채팅 기본값으로", () => save(true)) : null,
       button2("되돌리기", () => {
         clearDirty();
         renderPanel();
@@ -3867,7 +3906,7 @@ function mountSettings(api) {
       fontHost,
       el2("div", { class: "stt-note" }, ["보기와 글자 크기는 바로 적용되고 저장됩니다. 도착 언어는 아래 저장 버튼으로 저장합니다."])
     ]);
-    panel.replaceChildren(el2("div", { class: "stt-note" }, [chatId2 ? "지금 열린 채팅의 번역 설정입니다." : "열린 채팅이 없어 새 채팅의 기본값을 편집합니다."]), el2("div", { class: "stt-section" }, [
+    panel.replaceChildren(el2("div", { class: "stt-note" }, [chatId ? "지금 열린 채팅의 번역 설정입니다." : "열린 채팅이 없어 새 채팅의 기본값을 편집합니다."]), el2("div", { class: "stt-section" }, [
       el2("h3", {}, ["기본 번역"]),
       ...connectionBlock(connectionOptions),
       el2("div", { class: "stt-row" }, [text("모델 언어 (내 메시지를 이 언어로)", "modelLanguage"), text("내 언어 (응답을 이 언어로)", "myLanguage")]),
@@ -3883,7 +3922,7 @@ function mountSettings(api) {
       ], (v) => draft.translationUnit = v === "paragraph" ? "paragraph" : "whole"),
       check("내 메시지를 보내기 전에 번역 (채팅에는 번역문이 남습니다)", "translateMyMessages"),
       check("입력창 옆에 번역 버튼 표시", "showDraftButton")
-    ]), ...paragraphMode ? [paragraphSection()] : [], el2("div", { class: "stt-section" }, [el2("h3", {}, ["프롬프트 프리셋"]), promptSection("incoming", presets2), promptSection("outgoing", presets2), presetManager(presets2)]), bundleSection(), el2("div", { class: "stt-section" }, [
+    ]), ...paragraphMode ? [paragraphSection()] : [], el2("div", { class: "stt-section" }, [el2("h3", {}, ["프롬프트 프리셋"]), promptSection("incoming", presets), promptSection("outgoing", presets), presetManager(presets)]), bundleSection(), el2("div", { class: "stt-section" }, [
       el2("h3", {}, ["단어장"]),
       text("이 방에만 추가 · 한 줄에 한 쌍: 내 언어 용어 = 모델 언어 용어 (양방향 적용)", "glossary", { multiline: true, placeholder: `마리나라 = Marinara
 로어북 = lorebook` })
@@ -3947,13 +3986,13 @@ function mountSettings(api) {
       dirty = false;
     if (!viewSaveTimer)
       localView = { ...api.getStore().view };
-    applyFontVars2();
+    applyFontVars();
     if (ownViewSave)
       return;
     renderPanel();
   });
   localView = { ...api.getStore().view };
-  applyFontVars2();
+  applyFontVars();
   renderPanel();
   return () => {
     disposed = true;
